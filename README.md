@@ -12,10 +12,15 @@ Developed by **Roman Martyniuk**.
 
 - 🕒 Displays current **time**, **date**, and **weekday**
 - 🪟 Transparent, frameless, always-on-desktop window
-- ⌨️ Close the widget using the `Esc` key
 - 🖋 Choose fonts, text sizes, and screen position
 - ⚙️ Settings window available via system tray icon
 - 🔤 Supports custom fonts (e.g., *Anurati*)
+- ✅ **Task manager** with add, remove, and edit functionality
+- 🔼🔽 Reorder tasks using **up/down buttons** or **drag & drop**
+- ✏️ Edit tasks via **double-click**
+- 💾 Tasks **persist across sessions** using QSettings (JSON storage)
+- 🖱 System tray integration with **show/hide clock**, **show/hide tasks**, and **settings** options
+- 🗔 Adjustable **screen offsets** for precise placement
 
 ---
 
