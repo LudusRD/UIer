@@ -66,6 +66,7 @@ Developed by **Roman Martyniuk**.
 
 ## 📁 Project Structure
 
+```bash
 UIer/
 ├── Uier.py               # 🧠main script
 ├── fonts/
@@ -74,6 +75,7 @@ UIer/
 │   └── Logo.ico
 ├── README.md
 ├── requirements.txt
+```
 
 ---
 
