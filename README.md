@@ -21,7 +21,8 @@ Developed by **Roman Martyniuk**.
 
 ## 🖼 UI Preview
 
-*(You can add screenshots here in an `img/` folder)*
+<img width="633" height="233" alt="Screenshot" src="https://github.com/user-attachments/assets/2eb8bafb-bc94-4e92-be5b-7d2a8a0cb863" />
+
 
 ---
 
