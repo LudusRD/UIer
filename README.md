@@ -71,7 +71,7 @@ Developed by **Roman Martyniuk**.
     pyinstaller --onefile --windowed ^
       --add-data "fonts;fonts" ^
       --add-data "icon;icon" ^
-      UIer.py
+      Uier.py
     ```
 
 💡 Make sure the `fonts/` and `icon/` folders are in the same directory as `UIer.py`.
