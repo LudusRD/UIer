@@ -2,6 +2,8 @@
 
 **UIer** is a minimalist personal widget app for displaying the **date**, **day of the week**, and **time** on your Windows desktop.
 
+It also includes a **task manager** where you can add tasks, rename them, delete them, reorder by drag and drop, and mark tasks as completed.
+
 Built with **Python + PyQt5**, the widget floats on the desktop with a **frameless**, **transparent** interface, stays behind other windows, and is fully customizable.
 
 Developed by **Roman Martyniuk**.
@@ -67,12 +69,21 @@ Developed by **Roman Martyniuk**.
 
 2. 🏗 Build with:
 
-    ```bash
-    pyinstaller --onefile --windowed ^
-      --add-data "fonts;fonts" ^
-      --add-data "icon;icon" ^
-      Uier.py
-    ```
+> PowerShell
+
+```bash
+pyinstaller --onefile --windowed --icon=icon\Logo.ico --add-data "fonts;fonts" --add-data "icon;icon" Uier.py
+```
+    
+> CMD
+
+```bash
+pyinstaller --onefile --windowed ^
+  --icon=icon\Logo.ico ^
+  --add-data "fonts;fonts" ^
+  --add-data "icon;icon" ^
+  Uier.py
+```
 
 💡 Make sure the `fonts/` and `icon/` folders are in the same directory as `UIer.py`.
 
