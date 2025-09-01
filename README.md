@@ -39,12 +39,13 @@ Developed by **Roman Martyniuk**.
     pip install -r requirements.txt
     ```
 
-2. Change paths to files:
-   Search in a code for
+2. 🔧 Update file paths:
+   In the code, search for
    ```bash
     #!Change
    ```
-   and change the path to files on your computer.
+   and replace the file paths with the ones on your system
+
 
 4. ▶️ Run the app:
 
