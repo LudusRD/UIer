@@ -39,10 +39,17 @@ Developed by **Roman Martyniuk**.
     pip install -r requirements.txt
     ```
 
-2. ▶️ Run the app:
+2. Change paths to files:
+   Search in a code for
+   ```bash
+    #!Change
+   ```
+   and change the path to files on your computer.
+
+4. ▶️ Run the app:
 
     ```bash
-    python UIer.py
+    python Uier.py
     ```
 
 ---
