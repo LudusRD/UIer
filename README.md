@@ -26,7 +26,9 @@ Developed by **Roman Martyniuk**.
 
 ## 🖼 UI Preview
 
-<img width="633" height="233" alt="Screenshot" src="https://github.com/user-attachments/assets/2eb8bafb-bc94-4e92-be5b-7d2a8a0cb863" />
+<img width="633" height="233" alt="Clock" src="https://github.com/user-attachments/assets/2eb8bafb-bc94-4e92-be5b-7d2a8a0cb863" />
+<img width="480" height="560" alt="Task manager" src="https://github.com/user-attachments/assets/c7e76e95-c638-40b3-8e18-0cfe531f1acd" />
+
 
 
 ---
