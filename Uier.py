@@ -1024,7 +1024,7 @@ class SettingsWindow(QWidget):
         self.available_fonts = ["Arial", "Segoe UI", "Verdana", "Courier New"]
 
         # try to load an embedded font if present
-        font_path = r"C:\Users\25roma\source\repos\Uier\Uier\fonts\Anurati-Regular.otf"
+        font_path = resource_path("fonts/Anurati-Regular.otf")
         font_id = QFontDatabase.addApplicationFont(font_path)
         if font_id != -1:
             anurati_family = QFontDatabase.applicationFontFamilies(font_id)[0]
