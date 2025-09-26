@@ -10,7 +10,8 @@ from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QVBoxLayout, QComboBox,
     QSpinBox, QPushButton, QSystemTrayIcon, QMenu, QAction,
     QLineEdit, QListWidget, QListWidgetItem, QHBoxLayout,
-    QInputDialog, QAbstractItemView, QMessageBox, QCheckBox
+    QInputDialog, QAbstractItemView, QMessageBox, QCheckBox,
+    QSizePolicy
 )
 from PyQt5.QtCore import Qt, QTimer, QSettings
 from PyQt5.QtGui import QFont, QFontDatabase, QIcon
@@ -122,46 +123,69 @@ class CalendarWidget(QWidget):
 
         # main event label (single-line summary) and all-day label below
         self.main_label = QLabel("Loading...", self)
-        self.main_label.setAlignment(Qt.AlignRight)
+        self.main_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.main_label.setStyleSheet("color: white;")
         f = self.main_label.font()
         f.setPointSize(10)
         self.main_label.setFont(f)
+        self.main_label.setContentsMargins(0, 0, 0, 0)
+        self.main_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
 
         self.allday_label = QLabel("", self)
-        self.allday_label.setAlignment(Qt.AlignRight)
+        self.allday_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.allday_label.setStyleSheet("color: white;")
         fa = self.allday_label.font()
         fa.setPointSize(9)
         self.allday_label.setFont(fa)
+        # hide by default and make it not take extra vertical space
+        self.allday_label.setVisible(False)
+        self.allday_label.setContentsMargins(0, 0, 0, 0)
+        self.allday_label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.allday_label.setMinimumHeight(0)
 
         # navigation controls: Prev / index / Next
         nav_layout = QHBoxLayout()
         nav_layout.setContentsMargins(0, 0, 0, 0)
         nav_layout.setSpacing(6)
+
+        # keep a small spacer to separate from right edge if needed
         nav_layout.addStretch()
 
+        # make the buttons a bit smaller so they don't force extra vertical room
+        btn_h, btn_w = 20, 30
         self.prev_btn = QPushButton("◀")
-        self.prev_btn.setFixedSize(36, 24)
+        self.prev_btn.setFixedSize(btn_w, btn_h)
         self.prev_btn.clicked.connect(self.prev_event)
         nav_layout.addWidget(self.prev_btn)
 
         self.index_label = QLabel("", self)
         self.index_label.setAlignment(Qt.AlignCenter)
-        self.index_label.setFixedHeight(24)
-        # make index digits white as requested
-        self.index_label.setStyleSheet("color: white;")
+        # smaller height so it doesn't add vertical gap
+        self.index_label.setFixedHeight(18)
+        self.index_label.setFixedWidth(60)
+        self.index_label.setContentsMargins(0, 0, 0, 0)
+        self.index_label.setStyleSheet("color: white; padding: 0px; margin: 0px;")
         nav_layout.addWidget(self.index_label)
 
         self.next_btn = QPushButton("▶")
-        self.next_btn.setFixedSize(36, 24)
+        self.next_btn.setFixedSize(btn_w, btn_h)
         self.next_btn.clicked.connect(self.next_event)
         nav_layout.addWidget(self.next_btn)
 
+        # wrap nav_layout into a widget so we can add it to the vbox with alignment
+        nav_widget = QWidget()
+        nav_widget.setLayout(nav_layout)
+        nav_widget.setContentsMargins(0, 0, 0, 0)
+        nav_widget.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+
+        # main vertical layout: minimal spacing / margins to avoid gaps
         layout = QVBoxLayout()
+        layout.setContentsMargins(4, 2, 4, 2)   # small margins
+        layout.setSpacing(2)                    # tight spacing
         layout.addWidget(self.main_label)
         layout.addWidget(self.allday_label)
-        layout.addLayout(nav_layout)
+        # add nav_widget aligned to the right (no extra vertical stretch)
+        layout.addWidget(nav_widget, 0, Qt.AlignRight)
         self.setLayout(layout)
 
         self.setGeometry(1100, 970, 800, 140)
@@ -325,6 +349,7 @@ class CalendarWidget(QWidget):
             if not ics_url:
                 self.main_label.setText("Calendar URL not set")
                 self.allday_label.setText("")
+                self.allday_label.setVisible(False)
                 self.poll_timer.setInterval(self._retry_interval)
                 self._events = []
                 self._allday_events = []
@@ -337,6 +362,7 @@ class CalendarWidget(QWidget):
             except Exception as e:
                 self.main_label.setText(f"Error loading calendar: {e}")
                 self.allday_label.setText("")
+                self.allday_label.setVisible(False)
                 self.poll_timer.setInterval(self._retry_interval)
                 self._events = []
                 self._allday_events = []
@@ -355,6 +381,7 @@ class CalendarWidget(QWidget):
             if not occurrences:
                 self.main_label.setText("No upcoming events.")
                 self.allday_label.setText("")
+                self.allday_label.setVisible(False)
                 self._events = []
                 self._allday_events = []
                 self._event_index = 0
@@ -403,14 +430,17 @@ class CalendarWidget(QWidget):
                 if len(joined) > 220:
                     joined = joined[:217] + "..."
                 self.allday_label.setText("All-day: " + joined)
+                self.allday_label.setVisible(True)
             else:
                 self.allday_label.setText("")
+                self.allday_label.setVisible(False)
 
             self._update_nav_controls()
 
         except Exception as e:
             self.main_label.setText(f"Error processing calendar: {e}")
             self.allday_label.setText("")
+            self.allday_label.setVisible(False)
             self.poll_timer.setInterval(self._retry_interval)
             self._events = []
             self._allday_events = []
