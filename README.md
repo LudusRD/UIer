@@ -28,8 +28,10 @@ Developed by **Roman Martyniuk**.
 
 ## 🖼 UI Preview
 
-<img width="633" height="233" alt="Clock" src="https://github.com/user-attachments/assets/2eb8bafb-bc94-4e92-be5b-7d2a8a0cb863" />
+<img width="480" height="233" alt="Clock" src="https://github.com/user-attachments/assets/2eb8bafb-bc94-4e92-be5b-7d2a8a0cb863" />
 <img width="480" height="560" alt="Task manager" src="https://github.com/user-attachments/assets/c7e76e95-c638-40b3-8e18-0cfe531f1acd" />
+<img width="480" height="250" alt="Calendar" src="https://github.com/user-attachments/assets/71ba9d01-0dd8-4937-b79e-1f1bf4138d67" />
+
 
 
 
