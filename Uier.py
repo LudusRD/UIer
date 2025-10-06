@@ -16,7 +16,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QTimer, QSettings
 from PyQt5.QtGui import QFont, QFontDatabase, QIcon
 
-from icalendar import Calendar  # pip install icalendar
+from icalendar import Calendar
 
 MAX_TASK_LENGTH = 26  # max chars for task text
 
@@ -678,7 +678,7 @@ class TaskWidget(QWidget):
         self.update_clean_button_visibility()
 
     def rebuild_list(self):
-        """Rebuild QListWidget from self.tasks safely."""
+        """Re-build QListWidget from self.tasks safely."""
         while self.task_list.count() > 0:
             it = self.task_list.item(0)
             w = self.task_list.itemWidget(it)
@@ -777,7 +777,7 @@ class TaskWidget(QWidget):
         self.update_clean_button_visibility()
 
     def edit_task_item(self, item: QListWidgetItem):
-        """Edit a task on double-click; empty result removes the task."""
+        """Edit a task on doubble-click; empty result removes the task."""
         w = self.task_list.itemWidget(item)
         if w is None:
             return
@@ -1076,6 +1076,7 @@ class SettingsWindow(QWidget):
         layout.addWidget(self.ics_url_edit)
 
         # font selectors
+        layout.addWidget(QLabel("Font selectors:"))
         self.font_selector_day = QComboBox(self)
         self.font_selector_day.addItems(self.available_fonts)
         layout.addWidget(self.font_selector_day)
@@ -1089,6 +1090,7 @@ class SettingsWindow(QWidget):
         layout.addWidget(self.font_selector_time)
 
         # size selectors
+        layout.addWidget(QLabel("Size selectors:"))
         self.size_selector_day = QSpinBox(self)
         self.size_selector_day.setRange(4, 96)
         layout.addWidget(self.size_selector_day)
@@ -1102,6 +1104,7 @@ class SettingsWindow(QWidget):
         layout.addWidget(self.size_selector_time)
 
         # position and offsets
+        layout.addWidget(QLabel("Offset on the screen: "))
         self.position_selector = QComboBox(self)
         self.position_selector.addItems([
             "Top-left", "Top-center", "Top-right",
@@ -1110,10 +1113,12 @@ class SettingsWindow(QWidget):
         ])
         layout.addWidget(self.position_selector)
 
+        layout.addWidget(QLabel("Move by X:"))
         self.offset_x_spin = QSpinBox(self)
         self.offset_x_spin.setRange(-500, 500)
         layout.addWidget(self.offset_x_spin)
 
+        layout.addWidget(QLabel("Move by Y:"))
         self.offset_y_spin = QSpinBox(self)
         self.offset_y_spin.setRange(-500, 500)
         layout.addWidget(self.offset_y_spin)
@@ -1130,15 +1135,16 @@ class SettingsWindow(QWidget):
         layout.addWidget(self.theme_selector_tasks)
 
         # startup flags
-        self.startup_checkbox_settings = QCheckBox("Show settings at startup")
+        layout.addWidget(QLabel("Show at startup:"))
+        self.startup_checkbox_settings = QCheckBox("Settings")
         layout.addWidget(self.startup_checkbox_settings)
         self.startup_checkbox_settings.toggled.connect(lambda v: self._save_flag("show_settings_on_start", v))
 
-        self.startup_checkbox_tasks = QCheckBox("Show task window at startup")
+        self.startup_checkbox_tasks = QCheckBox("Task window")
         layout.addWidget(self.startup_checkbox_tasks)
         self.startup_checkbox_tasks.toggled.connect(lambda v: self._save_flag("show_tasks_on_start", v))
 
-        self.startup_checkbox_widget = QCheckBox("Show time widget at startup")
+        self.startup_checkbox_widget = QCheckBox("Clock")
         layout.addWidget(self.startup_checkbox_widget)
         self.startup_checkbox_widget.toggled.connect(lambda v: self._save_flag("show_widget_on_start", v))
         self.startup_checkbox_calendar = QCheckBox("Show calendar at startup")
@@ -1150,7 +1156,7 @@ class SettingsWindow(QWidget):
         self.apply_button.clicked.connect(self.apply_clicked)
         layout.addWidget(self.apply_button)
 
-        self.finish_button = QPushButton("Finish", self)
+        self.finish_button = QPushButton("Close settings", self)
         self.finish_button.clicked.connect(self.finish_clicked)
         layout.addWidget(self.finish_button)
 
@@ -1159,7 +1165,7 @@ class SettingsWindow(QWidget):
         layout.addWidget(self.exit_button)
 
         self.setLayout(layout)
-        self.setGeometry(1350, 250, 520, 560)
+        self.setGeometry(1350, 100, 520, 560)
 
     def _save_flag(self, key: str, checked: bool):
         settings = QSettings("MyCompany", "MyWidgetApp")
@@ -1281,6 +1287,8 @@ def main():
     tray_icon = QSystemTrayIcon()
     tray_icon.setIcon(QIcon(resource_path("icon/Logo.ico")))
     tray_icon.setVisible(True)
+
+    widget_app.setWindowIcon(QIcon(resource_path("icon/Logo.ico")))
 
     tray_menu = QMenu()
     tray_menu.addAction("Show Clock", widget_app.show)
