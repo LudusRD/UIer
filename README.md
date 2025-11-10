@@ -4,7 +4,7 @@
 
 It also includes a **task manager** where you can add tasks, rename them, delete them, reorder by drag and drop, and mark tasks as completed.
 
-Built with **Python + PyQt5**, the widget floats on the desktop with a **frameless**, **transparent** interface, stays behind other windows, and is fully customizable.
+Built with **Python + PyQt5 + Ical**, the widget floats on the desktop with a **frameless**, **transparent** interface, stays behind other windows, and is fully customizable.
 
 Developed by **Roman Martyniuk**.
 
