@@ -102,6 +102,8 @@ UIer/
 
 ## 📦 requirements.txt
 PyQt5
+recurring-ical-events
+
 
 ```bash
 # Minimal version (works with PyQt5 5.12 and above)
