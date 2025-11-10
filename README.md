@@ -101,17 +101,13 @@ UIer/
 ---
 
 ## 📦 requirements.txt
-PyQt5
-recurring-ical-events
-
 
 ```bash
-# Minimal version (works with PyQt5 5.12 and above)
-PyQt5 - 5.12+
+PyQt5
 
-# Recommended fixed version (latest stable as of August 2025)
-PyQt5 - 5.15.11
+recurring-ical-events
 ```
+
 
 
 ---
