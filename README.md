@@ -128,4 +128,4 @@ This project is open for **personal and public use**, with a few simple conditio
 
 **Roman Martyniuk** (aka *Roma_Doma*)
 
-Originally created as a personal utility to customize and beautify the Windows desktop.
+Originally created as a personal utility to customize and beautify the Windows desktop. AI was used to adjust the code and comments to a single style.
