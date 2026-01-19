@@ -63,21 +63,21 @@ Developed by **Roman Martyniuk**.
 
 2. 🏗 Build with:
 
-> PowerShell
-
-```bash
-pyinstaller --onefile --windowed --icon=icon\Logo.ico --add-data "fonts;fonts" --add-data "icon;icon" Uier.py
-```
+    > PowerShell
     
-> CMD
-
-```bash
-pyinstaller --onefile --windowed ^
-  --icon=icon\Logo.ico ^
-  --add-data "fonts;fonts" ^
-  --add-data "icon;icon" ^
-  Uier.py
-```
+    ```bash
+    pyinstaller --onefile --windowed --icon=icon\Logo.ico --add-data "fonts;fonts" --add-data "icon;icon" Uier.py
+    ```
+        
+    > CMD
+    
+    ```bash
+    pyinstaller --onefile --windowed ^
+      --icon=icon\Logo.ico ^
+      --add-data "fonts;fonts" ^
+      --add-data "icon;icon" ^
+      Uier.py
+    ```
 
 💡 Make sure the `fonts/` and `icon/` folders are in the same directory as `UIer.py`.
 
@@ -87,26 +87,26 @@ pyinstaller --onefile --windowed ^
 
 ## 📁 Project Structure
 
-```bash
-UIer/
-├── Uier.py               # 🧠main script
-├── fonts/
-│   └── Anurati-Regular.otf
-├── icon/
-│   └── Logo.ico
-├── README.md
-├── requirements.txt
-```
+    ```bash
+    UIer/
+    ├── Uier.py               # 🧠main script
+    ├── fonts/
+    │   └── Anurati-Regular.otf
+    ├── icon/
+    │   └── Logo.ico
+    ├── README.md
+    ├── requirements.txt
+    ```
 
 ---
 
 ## 📦 requirements.txt
-
-```bash
-PyQt5
-
-recurring-ical-events
-```
+    
+    ```bash
+    PyQt5
+    
+    recurring-ical-events
+    ```
 
 
 
