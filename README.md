@@ -1,17 +1,11 @@
 # 🧩 UIer
-
 **UIer** is a minimalist personal widget app for displaying the **date**, **day of the week**, and **time** on your Windows desktop.
-
 It also includes a **task manager** where you can add tasks, rename them, delete them, reorder by drag and drop, and mark tasks as completed.
-
 Built with **Python + PyQt5 + Ical**, the widget floats on the desktop with a **frameless**, **transparent** interface, stays behind other windows, and is fully customizable.
-
-Developed by **Roman Martyniuk**.
 
 ---
 
 ## 💡 Features
-
 - 🕒 Displays current **time**, **date**, and **weekday**
 - 🪟 Transparent, frameless, always-on-desktop window
 - 🖋 Choose fonts, text sizes, and screen position
@@ -22,31 +16,26 @@ Developed by **Roman Martyniuk**.
 - ✏️ Edit tasks via **double-click**
 - 💾 Tasks **persist across sessions** using QSettings (JSON storage)
 - 🖱 System tray integration with **show/hide clock**, **show/hide tasks**, and **settings** options
+- 📅 **Calendar widget** showing upcoming events from a `.ics` URL, with all-day event support and navigation
 - 🗔 Adjustable **screen offsets** for precise placement
 
 ---
 
 ## 🖼 UI Preview
-
 <img width="480" height="233" alt="Clock" src="https://github.com/user-attachments/assets/2eb8bafb-bc94-4e92-be5b-7d2a8a0cb863" />
 <img width="480" height="560" alt="Task manager" src="https://github.com/user-attachments/assets/c7e76e95-c638-40b3-8e18-0cfe531f1acd" />
 <img width="480" height="250" alt="Calendar" src="https://github.com/user-attachments/assets/71ba9d01-0dd8-4937-b79e-1f1bf4138d67" />
-
-
-
 
 ---
 
 ## 🚀 How to Run
 
 1. 📦 Install dependencies:
-
     ```bash
     pip install -r requirements.txt
     ```
 
 2. ▶️ Run the app:
-
     ```bash
     python Uier.py
     ```
@@ -56,59 +45,54 @@ Developed by **Roman Martyniuk**.
 ## 🛠 How to Build .exe (Windows)
 
 1. 📥 Install PyInstaller:
-
     ```bash
     pip install pyinstaller
     ```
 
-2. 🏗 Build with:
-
-    > PowerShell
-    
+2. 🏗 Build using the included spec file:
     ```bash
-    pyinstaller --onefile --windowed --icon=icon\Logo.ico --add-data "fonts;fonts" --add-data "icon;icon" Uier.py
-    ```
-        
-    > CMD
-    
-    ```bash
-    pyinstaller --onefile --windowed ^
-      --icon=icon\Logo.ico ^
-      --add-data "fonts;fonts" ^
-      --add-data "icon;icon" ^
-      Uier.py
+    pyinstaller Uier.spec
     ```
 
-💡 Make sure the `fonts/` and `icon/` folders are in the same directory as `UIer.py`.
+💡 Make sure the `fonts/` and `icon/` folders are in the same directory as `Uier.py`.  
+The `.spec` file already includes all required settings — icon, fonts, and data folders.
 
-👉 The `--add-data "fonts;fonts"` argument means: *“include everything inside the `fonts/` folder and place it in a folder called `fonts` inside the built executable.”*
+👉 The finished `.exe` will appear in the `dist/` folder.
+
+> ⚠️ If you see an error about `pathlib` being incompatible with PyInstaller, run:
+> ```bash
+> python -m pip uninstall pathlib
+> ```
+> Then try building again.
+
+> ⚠️ If you get `PermissionError: Access is denied` on `dist\Uier.exe`, the app is still running.  
+> Close it from the system tray first, then build again.
 
 ---
 
 ## 📁 Project Structure
 
-    ```bash
-    UIer/
-    ├── Uier.py               # 🧠main script
-    ├── fonts/
-    │   └── Anurati-Regular.otf
-    ├── icon/
-    │   └── Logo.ico
-    ├── README.md
-    ├── requirements.txt
-    ```
+```
+UIer/
+├── Uier.py                   # 🧠 Main script
+├── Uier.spec                 # 🔧 PyInstaller build config
+├── fonts/
+│   └── Anurati-Regular.otf
+├── icon/
+│   └── Logo.ico
+├── README.md
+├── requirements.txt
+```
 
 ---
 
 ## 📦 requirements.txt
-    
-    ```bash
-    PyQt5
-    
-    recurring-ical-events
-    ```
 
-
+```
+PyQt5
+recurring-ical-events
+icalendar
+```
 
 ---
 
@@ -126,6 +110,5 @@ This project is open for **personal and public use**, with a few simple conditio
 
 ## ✍️ Author
 
-**Roman Martyniuk** (aka *Roma_Doma*)
-
+**Roman Martyniuk** (aka *Roma_Doma*)  
 Originally created as a personal utility to customize and beautify the Windows desktop. AI was used to adjust the code and comments to a single style.
