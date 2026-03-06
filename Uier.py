@@ -188,7 +188,8 @@ class CalendarWidget(QWidget):
         layout.addWidget(nav_widget, 0, Qt.AlignRight)
         self.setLayout(layout)
 
-        self.setGeometry(1100, 970, 800, 140)
+        # FIX 1: Anchor to bottom-right using actual screen geometry
+        self._reposition()
 
         self.theme = 'Day'
 
@@ -200,29 +201,33 @@ class CalendarWidget(QWidget):
 
         self._loading = False
 
-        # occurrences lists and current index
-        self._events = []         # timed event occurrences
-        self._allday_events = []  # all-day event titles
+        self._events = []
+        # FIX 3: Store all-day events per date (datetime.date -> list of titles)
+        self._allday_by_date = {}
         self._event_index = 0
 
         # start polling with fast retry until first successful load
         self.poll_timer.start(self._retry_interval)
         QTimer.singleShot(0, self.update_event)
 
+    def _reposition(self):
+        """Anchor the widget firmly to the bottom-right of the primary screen."""
+        screen = QApplication.primaryScreen().availableGeometry()
+        widget_w = 820
+        widget_h = 80
+        margin_right = 10
+        margin_bottom = 10
+        x = screen.x() + screen.width() - widget_w - margin_right
+        y = screen.y() + screen.height() - widget_h - margin_bottom
+        self.setGeometry(x, y, widget_w, widget_h)
+
     def _load_ics_from_url(self, url: str) -> Calendar:
         """Download .ics data and parse with icalendar.Calendar."""
         with urllib.request.urlopen(url, timeout=8) as resp:
             data = resp.read()
-        cal = Calendar.from_ical(data)
-        return cal
+        return Calendar.from_ical(data)
 
     def _is_allday_occurrence(self, comp) -> bool:
-        """Decide whether an occurrence is an all-day event.
-
-        Heuristics:
-          - dtstart is date-only -> all-day
-          - or dtstart time == 00:00 and dtend time == 00:00 and duration >= 1 day -> all-day
-        """
         try:
             start = comp.decoded('dtstart')
         except Exception:
@@ -257,11 +262,23 @@ class CalendarWidget(QWidget):
 
         if isinstance(end_dt, datetime.datetime):
             if start_dt.time() == datetime.time.min and end_dt.time() == datetime.time.min:
-                delta_days = (end_dt.date() - start_dt.date()).days
-                if delta_days >= 1:
+                if (end_dt.date() - start_dt.date()).days >= 1:
                     return True
-
         return False
+
+    def _get_occurrence_date(self, comp) -> datetime.date:
+        """Return the local calendar date of an occurrence's dtstart."""
+        try:
+            dt = comp.decoded('dtstart')
+            if isinstance(dt, datetime.datetime):
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=datetime.timezone.utc)
+                return dt.astimezone().date()
+            elif isinstance(dt, datetime.date):
+                return dt
+        except Exception:
+            pass
+        return datetime.date.today()
 
     def _format_event_line(self, comp, now: datetime.datetime) -> str:
         """Format a single occurrence into a compact string without trailing commas."""
@@ -291,21 +308,20 @@ class CalendarWidget(QWidget):
                     dtend = dtend.astimezone()
                 end_time_str = dtend.strftime("%H:%M")
         except Exception:
-            end_time_str = None
+            pass
 
         # fallback: duration
         if end_time_str is None:
             try:
                 dur = comp.decoded('duration')
                 if isinstance(dur, datetime.timedelta):
-                    dt_end_guess = dt + dur
-                    end_time_str = dt_end_guess.strftime("%H:%M")
+                    end_time_str = (dt + dur).strftime("%H:%M")
             except Exception:
-                end_time_str = None
+                pass
 
         time_display = start_time_str if end_time_str is None else f"{start_time_str}-{end_time_str}"
 
-        # make sure 'now' is timezone-aware
+        # make sure 'now' is actually now
         if now.tzinfo is None:
             now = now.astimezone()
 
@@ -314,28 +330,49 @@ class CalendarWidget(QWidget):
             days, seconds = delta.days, delta.seconds
             hours = seconds // 3600
             minutes = (seconds % 3600) // 60
-            until_parts = []
+            parts = []
             if days > 0:
-                until_parts.append(f"{days}d")
+                parts.append(f"{days}d")
             if hours > 0:
-                until_parts.append(f"{hours}h")
+                parts.append(f"{hours}h")
             if minutes > 0:
-                until_parts.append(f"{minutes}m")
-            until_str = "in " + " ".join(until_parts) if until_parts else "in 0m"
+                parts.append(f"{minutes}m")
+            until_str = "in " + " ".join(parts) if parts else "in 0m"
         else:
             until_str = "ongoing"
 
         summary = comp.get('summary') or comp.get('name') or "No title"
         location = comp.get('location') or ""
-        # keep only the first word of location to keep line compact (as before)
+        # keep only the first word of location to keep line compact
         short_location = " ".join(str(location).split()[:1]).rstrip(",")
 
         # build parts and join to avoid trailing commas when a part is empty
         parts = [str(summary).strip(), until_str.strip(), time_display.strip()]
         if short_location:
             parts.append(short_location.strip())
-
         return ", ".join(p for p in parts if p)
+
+    def _update_allday_label(self):
+        """
+        FIX 3: Show all-day events only for the date of the currently
+        displayed timed event. Falls back to today if no timed events.
+        Hides the label entirely when nothing is found for that date.
+        """
+        if self._events and 0 <= self._event_index < len(self._events):
+            target_date = self._get_occurrence_date(self._events[self._event_index])
+        else:
+            target_date = datetime.date.today()
+
+        titles = self._allday_by_date.get(target_date, [])
+        if titles:
+            joined = ", ".join(titles)
+            if len(joined) > 220:
+                joined = joined[:217] + "..."
+            self.allday_label.setText("All-day: " + joined)
+            self.allday_label.setVisible(True)
+        else:
+            self.allday_label.setText("")
+            self.allday_label.setVisible(False)
 
     def update_event(self):
         """Fetch calendar, split occurrences into timed and all-day, update UI."""
@@ -348,11 +385,10 @@ class CalendarWidget(QWidget):
             ics_url = settings.value("calendar_url", "", type=str).strip()
             if not ics_url:
                 self.main_label.setText("Calendar URL not set")
-                self.allday_label.setText("")
                 self.allday_label.setVisible(False)
                 self.poll_timer.setInterval(self._retry_interval)
                 self._events = []
-                self._allday_events = []
+                self._allday_by_date = {}
                 self._event_index = 0
                 self._update_nav_controls()
                 return
@@ -361,11 +397,10 @@ class CalendarWidget(QWidget):
                 cal = self._load_ics_from_url(ics_url)
             except Exception as e:
                 self.main_label.setText(f"Error loading calendar: {e}")
-                self.allday_label.setText("")
                 self.allday_label.setVisible(False)
                 self.poll_timer.setInterval(self._retry_interval)
                 self._events = []
-                self._allday_events = []
+                self._allday_by_date = {}
                 self._event_index = 0
                 self._update_nav_controls()
                 return
@@ -380,10 +415,9 @@ class CalendarWidget(QWidget):
 
             if not occurrences:
                 self.main_label.setText("No upcoming events.")
-                self.allday_label.setText("")
                 self.allday_label.setVisible(False)
                 self._events = []
-                self._allday_events = []
+                self._allday_by_date = {}
                 self._event_index = 0
                 self._update_nav_controls()
                 return
@@ -395,21 +429,22 @@ class CalendarWidget(QWidget):
                 pass
 
             timed = []
-            allday_titles = []
+            allday_by_date = {}  # datetime.date -> [title, ...]
             for occ in occurrences:
                 try:
                     if self._is_allday_occurrence(occ):
-                        title = occ.get('summary') or occ.get('name') or "No title"
-                        tstr = str(title).strip()
-                        if tstr and tstr not in allday_titles:
-                            allday_titles.append(tstr)
+                        title = str(occ.get('summary') or occ.get('name') or "No title").strip()
+                        occ_date = self._get_occurrence_date(occ)
+                        bucket = allday_by_date.setdefault(occ_date, [])
+                        if title and title not in bucket:
+                            bucket.append(title)
                     else:
                         timed.append(occ)
                 except Exception:
                     timed.append(occ)
 
             self._events = timed
-            self._allday_events = allday_titles
+            self._allday_by_date = allday_by_date
 
             # display current timed event if present
             if self._events:
@@ -424,34 +459,20 @@ class CalendarWidget(QWidget):
                 self._event_index = 0
                 self.main_label.setText("No timed events in the next 7 days.")
 
-            # format all-day list without trailing commas
-            if self._allday_events:
-                joined = ", ".join(self._allday_events)
-                if len(joined) > 220:
-                    joined = joined[:217] + "..."
-                self.allday_label.setText("All-day: " + joined)
-                self.allday_label.setVisible(True)
-            else:
-                self.allday_label.setText("")
-                self.allday_label.setVisible(False)
-
+            self._update_allday_label()
             self._update_nav_controls()
 
         except Exception as e:
-            self.main_label.setText(f"Error processing calendar: {e}")
-            self.allday_label.setText("")
+            self.main_label.setText(f"Error: {e}")
             self.allday_label.setVisible(False)
             self.poll_timer.setInterval(self._retry_interval)
             self._events = []
-            self._allday_events = []
+            self._allday_by_date = {}
             self._event_index = 0
             self._update_nav_controls()
         finally:
             self._loading = False
 
-    # ---------------------------
-    # Navigation helpers
-    # ---------------------------
     def _update_nav_controls(self):
         """Enable/disable Prev/Next and update the index label."""
         total = len(self._events)
@@ -461,37 +482,34 @@ class CalendarWidget(QWidget):
         else:
             self.prev_btn.setEnabled(self._event_index > 0)
             self.next_btn.setEnabled(self._event_index < total - 1)
-
-        if total == 0:
-            self.index_label.setText("")
-        else:
-            self.index_label.setText(f"{self._event_index+1} / {total}")
+        # that actually look better
+        self.index_label.setText("" if total == 0 else f"{self._event_index+1} / {total}")
 
     def prev_event(self):
         """Show previous timed occurrence if available."""
-        if not self._events:
+        if not self._events or self._event_index <= 0:
             return
-        if self._event_index > 0:
-            self._event_index -= 1
-            now = datetime.datetime.now().astimezone()
-            try:
-                self.main_label.setText(self._format_event_line(self._events[self._event_index], now))
-            except Exception:
-                self.main_label.setText(str(self._events[self._event_index].get('summary') or "Event"))
-            self._update_nav_controls()
+        self._event_index -= 1
+        now = datetime.datetime.now().astimezone()
+        try:
+            self.main_label.setText(self._format_event_line(self._events[self._event_index], now))
+        except Exception:
+            self.main_label.setText(str(self._events[self._event_index].get('summary') or "Event"))
+        self._update_allday_label()   # FIX 3: update all-day for new date
+        self._update_nav_controls()
 
     def next_event(self):
         """Show next timed occurrence if available."""
-        if not self._events:
+        if not self._events or self._event_index >= len(self._events) - 1:
             return
-        if self._event_index < len(self._events) - 1:
-            self._event_index += 1
-            now = datetime.datetime.now().astimezone()
-            try:
-                self.main_label.setText(self._format_event_line(self._events[self._event_index], now))
-            except Exception:
-                self.main_label.setText(str(self._events[self._event_index].get('summary') or "Event"))
-            self._update_nav_controls()
+        self._event_index += 1
+        now = datetime.datetime.now().astimezone()
+        try:
+            self.main_label.setText(self._format_event_line(self._events[self._event_index], now))
+        except Exception:
+            self.main_label.setText(str(self._events[self._event_index].get('summary') or "Event"))
+        self._update_allday_label()   # FIX 3: update all-day for new date
+        self._update_nav_controls()
 
 
 # ---------------------------
@@ -513,7 +531,6 @@ class TaskRow(QWidget):
         layout.addWidget(self.label, 1)
 
         btn_size = (44, 34)
-
         self.btn_up = QPushButton("⬆")
         self.btn_up.setFixedSize(*btn_size)
         layout.addWidget(self.btn_up)
@@ -525,10 +542,6 @@ class TaskRow(QWidget):
         self.btn_done = QPushButton("✅")
         self.btn_done.setFixedSize(*btn_size)
         layout.addWidget(self.btn_done)
-
-        self.btn_up.setStyleSheet("")
-        self.btn_down.setStyleSheet("")
-        self.btn_done.setStyleSheet("")
 
         self.set_done_style(done)
 
@@ -581,7 +594,6 @@ class TaskWidget(QWidget):
         self.add_button.clicked.connect(self.add_task)
         input_layout.addWidget(self.task_input)
         input_layout.addWidget(self.add_button)
-
         self.layout.addLayout(input_layout)
 
         self.task_list = TaskListWidget(self)
@@ -628,7 +640,6 @@ class TaskWidget(QWidget):
             self.add_button.setStyleSheet(PRIMARY_BTN_LIGHT + PRIMARY_BTN_LIGHT_HOVER)
             self.clean_done_btn.setStyleSheet(PRIMARY_BTN_LIGHT + PRIMARY_BTN_LIGHT_HOVER)
             self.task_input.setStyleSheet(LINEEDIT_LIGHT)
-
         self._apply_theme_to_rows()
 
     def _apply_theme_to_rows(self):
@@ -648,10 +659,7 @@ class TaskWidget(QWidget):
                 w.btn_down.setStyleSheet(ROW_BTN_DARK)
                 w.btn_done.setStyleSheet(ROW_BTN_DARK)
             else:
-                if done:
-                    w.label.setStyleSheet("color: gray;")
-                else:
-                    w.label.setStyleSheet("color: black;")
+                w.label.setStyleSheet("color: gray;" if done else "color: black;")
                 w.btn_up.setStyleSheet(ROW_BTN_LIGHT)
                 w.btn_down.setStyleSheet(ROW_BTN_LIGHT)
                 w.btn_done.setStyleSheet(ROW_BTN_LIGHT)
@@ -689,7 +697,6 @@ class TaskWidget(QWidget):
             del taken
 
         total = len(self.tasks)
-
         for idx, task in enumerate(self.tasks):
             text = (task.get('text') or "")[:MAX_TASK_LENGTH]
             task['text'] = text
@@ -697,7 +704,6 @@ class TaskWidget(QWidget):
             item = QListWidgetItem()
             row_widget = TaskRow(text, done=bool(task.get('done', False)))
             row_widget.task_id = task['id']
-
             item.setSizeHint(row_widget.sizeHint())
             self.task_list.addItem(item)
             self.task_list.setItemWidget(item, row_widget)
@@ -736,11 +742,8 @@ class TaskWidget(QWidget):
             current = self.tasks.pop(idx)
             current['done'] = False
             current['prev_index'] = None
-            dest = 0
-            if isinstance(prev, int) and prev >= 0:
-                dest = min(prev, len(self.tasks))
+            dest = min(prev, len(self.tasks)) if isinstance(prev, int) and prev >= 0 else 0
             self.tasks.insert(dest, current)
-
         self.rebuild_list()
         self.save_tasks()
         self.update_clean_button_visibility()
@@ -748,9 +751,7 @@ class TaskWidget(QWidget):
     def move_task_by_id(self, task_id, direction):
         """Move task up/down if possible."""
         idx = self.find_index_by_id(task_id)
-        if idx == -1:
-            return
-        if self.tasks[idx].get('done', False):
+        if idx == -1 or self.tasks[idx].get('done', False):
             return
         new_idx = idx + direction
         if new_idx < 0 or new_idx >= len(self.tasks):
@@ -781,16 +782,13 @@ class TaskWidget(QWidget):
         w = self.task_list.itemWidget(item)
         if w is None:
             return
-        current_text = w.label.text()
-        new_text, ok = QInputDialog.getText(self, "Edit task", "Task:", QLineEdit.Normal, current_text)
+        new_text, ok = QInputDialog.getText(self, "Edit task", "Task:", QLineEdit.Normal, w.label.text())
         if ok:
-            new_text = (new_text or "").strip()
+            new_text = (new_text or "").strip()[:MAX_TASK_LENGTH]
             if new_text == "":
                 if hasattr(w, 'task_id'):
                     self.remove_task_by_id(w.task_id)
                 return
-            if len(new_text) > MAX_TASK_LENGTH:
-                new_text = new_text[:MAX_TASK_LENGTH]
             w.label.setText(new_text)
             if hasattr(w, 'task_id'):
                 idx = self.find_index_by_id(w.task_id)
@@ -815,18 +813,11 @@ class TaskWidget(QWidget):
         msg.setText("Are you sure you want to remove all completed tasks?")
         msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
         msg.setDefaultButton(QMessageBox.No)
-
-        if self.theme == 'Night':
-            msg.setStyleSheet(QMSGBOX_DARK)
-        else:
-            msg.setStyleSheet(QMSGBOX_LIGHT)
-
-        reply = msg.exec_()
-        return reply == QMessageBox.Yes
+        msg.setStyleSheet(QMSGBOX_DARK if self.theme == 'Night' else QMSGBOX_LIGHT)
+        return msg.exec_() == QMessageBox.Yes
 
     def update_clean_button_visibility(self):
-        any_done = any(t.get('done', False) for t in self.tasks)
-        self.clean_done_btn.setVisible(any_done)
+        self.clean_done_btn.setVisible(any(t.get('done', False) for t in self.tasks))
 
     def on_clean_done_clicked(self):
         """Remove all tasks marked done after confirmation."""
@@ -838,19 +829,21 @@ class TaskWidget(QWidget):
             self.save_tasks()
             self.update_clean_button_visibility()
 
-    # Save / Load (QSettings, JSON)
     def save_tasks(self):
+        """Save / Load (QSettings, JSON)"""
         settings = QSettings("MyCompany", "MyWidgetApp")
         try:
             settings.setValue("tasks", json.dumps(self.tasks, ensure_ascii=False))
         except Exception:
-            # fallback: save minimal structure
-            settings.setValue("tasks", json.dumps([{'text': t['text'], 'done': t.get('done', False)} for t in self.tasks], ensure_ascii=False))
+            settings.setValue("tasks", json.dumps(
+                [{'text': t['text'], 'done': t.get('done', False)} for t in self.tasks],
+                ensure_ascii=False
+            ))
 
     def load_tasks(self):
         settings = QSettings("MyCompany", "MyWidgetApp")
         raw = settings.value("tasks", "")
-        if raw is None or raw == "":
+        if not raw:
             self.tasks = []
             return
         try:
@@ -864,68 +857,18 @@ class TaskWidget(QWidget):
             elif isinstance(data, list) and all(isinstance(x, dict) for x in data):
                 self.tasks = []
                 for entry in data:
-                    if 'id' in entry and isinstance(entry['id'], int):
-                        tid = entry['id']
-                    else:
-                        tid = self._next_id
-                        self._next_id += 1
+                    tid = entry['id'] if ('id' in entry and isinstance(entry['id'], int)) else self._next_id
+                    self._next_id = max(self._next_id, tid + 1)
                     text = (entry.get('text', '') or "")[:MAX_TASK_LENGTH]
                     done = bool(entry.get('done', False))
                     prev_index = entry.get('prev_index', None)
                     if isinstance(prev_index, int) and prev_index < 0:
                         prev_index = None
                     self.tasks.append({'id': tid, 'text': text, 'done': done, 'prev_index': prev_index})
-                    if tid >= self._next_id:
-                        self._next_id = tid + 1
             else:
                 self.tasks = []
         except Exception:
             self.tasks = []
-
-    def _remove_item(self, item: QListWidgetItem, widget: QWidget):
-        """Deprecated compatibility helper."""
-        row = self.task_list.row(item)
-        if row < 0:
-            return
-        w = self.task_list.itemWidget(item)
-        taken = self.task_list.takeItem(row)
-        if w is not None:
-            w.setParent(None)
-            w.deleteLater()
-        try:
-            del taken
-        except Exception:
-            pass
-
-    def move_item(self, item: QListWidgetItem, direction: int):
-        """Deprecated swap helper - left for compatibility."""
-        row = self.task_list.row(item)
-        if row == -1:
-            return
-        new_row = row + direction
-        count = self.task_list.count()
-        if new_row < 0 or new_row >= count:
-            return
-
-        other_item = self.task_list.item(new_row)
-        if other_item is None:
-            return
-
-        w1 = self.task_list.itemWidget(item)
-        w2 = self.task_list.itemWidget(other_item)
-
-        if w1 is None and w2 is None:
-            return
-
-        self.task_list.setItemWidget(item, w2)
-        self.task_list.setItemWidget(other_item, w1)
-
-        if w1 is not None:
-            item.setSizeHint(w1.sizeHint())
-        if w2 is not None:
-            other_item.setSizeHint(w2.sizeHint())
-
-        self.task_list.setCurrentItem(other_item if direction == -1 else item)
 
 
 # ---------------------------
@@ -934,7 +877,6 @@ class TaskWidget(QWidget):
 class WidgetApp(QWidget):
     def __init__(self):
         super().__init__()
-
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnBottomHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.setAttribute(Qt.WA_OpaquePaintEvent)
@@ -963,19 +905,18 @@ class WidgetApp(QWidget):
 
         self.setGeometry(100, 100, 460, 360)
         self.theme = 'Day'
+        # cache for re-apply after show
+        self._last_settings = None
 
     def update_time(self):
-        current_time = time.strftime("%H:%M")
-        current_day = time.strftime("%A")
-        current_date_num = time.strftime("%d")
-        current_date_month = time.strftime("%B")
-
-        spaced_day = '  '.join(current_day.upper())
-        self.day_label.setText(spaced_day)
-        self.date_label.setText(f"{current_date_num} {current_date_month}")
-        self.time_label.setText(f"- {current_time.upper()} -")
+        self.day_label.setText('  '.join(time.strftime("%A").upper()))
+        self.date_label.setText(f"{time.strftime('%d')} {time.strftime('%B')}")
+        self.time_label.setText(f"- {time.strftime('%H:%M').upper()} -")
 
     def apply_settings(self, fonts, sizes, position, offset_x=0, offset_y=0):
+        # сache settings so we can re-apply after the widget is shown
+        self._last_settings = (fonts, sizes, position, offset_x, offset_y)
+
         self.day_label.setFont(QFont(fonts['day'], sizes['day']))
         self.date_label.setFont(QFont(fonts['date'], sizes['date']))
         self.time_label.setFont(QFont(fonts['time'], sizes['time']))
@@ -984,54 +925,54 @@ class WidgetApp(QWidget):
             label.adjustSize()
             label.setAlignment(Qt.AlignCenter)
 
+        # FIX 2: Force full layout before reading size so sizeHint() is correct
+        # even if the widget hasn't been painted yet
+        self.ensurePolished()
         self.adjustSize()
-        self.repaint()
+        QApplication.processEvents()
         self.resize(self.sizeHint())
-
         self.layout().invalidate()
         self.layout().activate()
         self.updateGeometry()
 
-        screen = QApplication.primaryScreen().geometry()
-        screen_width, screen_height = screen.width(), screen.height()
-        w, h = self.width(), self.height()
+        screen = QApplication.primaryScreen().availableGeometry()
+        sw, sh = screen.width(), screen.height()
+        w, h = self.sizeHint().width(), self.sizeHint().height()
 
         pos = position
         if pos == "Top-left":
             x, y = 0, 0
         elif pos == "Top-center":
-            x, y = (screen_width - w) // 2, 0
+            x, y = (sw - w) // 2, 0
         elif pos == "Top-right":
-            x, y = screen_width - w, 0
+            x, y = sw - w, 0
         elif pos == "Bottom-left":
-            x, y = 0, screen_height - h
+            x, y = 0, sh - h
         elif pos == "Bottom-center":
-            x, y = (screen_width - w) // 2, screen_height - h
+            x, y = (sw - w) // 2, sh - h
         elif pos == "Bottom-right":
-            x, y = screen_width - w, screen_height - h
+            x, y = sw - w, sh - h
         elif pos == "Left-center":
-            x, y = 0, (screen_height - h) // 2
+            x, y = 0, (sh - h) // 2
         elif pos == "Right-center":
-            x, y = screen_width - w, (screen_height - h) // 2
+            x, y = sw - w, (sh - h) // 2
         else:
             x, y = 0, 0
 
-        x += offset_x
-        y += offset_y
+        x = max(0, min(x + offset_x, sw - w))
+        y = max(0, min(y + offset_y, sh - h))
 
-        x = max(0, min(x, screen_width - w))
-        y = max(0, min(y, screen_height - h))
+        self.move(screen.x() + x, screen.y() + y)
 
-        self.move(x, y)
+    def reapply_last_settings(self):
+        """Call after show() to recompute position with actual rendered size."""
+        if self._last_settings is not None:
+            self.apply_settings(*self._last_settings)
 
     def apply_theme(self, theme: str):
         """Set color theme for clock labels."""
         self.theme = 'Night' if str(theme).lower().startswith('n') else 'Day'
-        if self.theme == 'Night':
-            color = DARK_BG
-            style = f"color: {color};"
-        else:
-            style = "color: white;"
+        style = f"color: {DARK_BG};" if self.theme == 'Night' else "color: white;"
         self.day_label.setStyleSheet(style)
         self.date_label.setStyleSheet(style)
         self.time_label.setStyleSheet(style)
@@ -1052,7 +993,6 @@ class SettingsWindow(QWidget):
         self.calendar_widget = calendar_widget
 
         self.available_fonts = ["Arial", "Segoe UI", "Verdana", "Courier New"]
-
         # try to load an embedded font if present
         font_path = resource_path("fonts/Anurati-Regular.otf")
         font_id = QFontDatabase.addApplicationFont(font_path)
@@ -1064,12 +1004,15 @@ class SettingsWindow(QWidget):
 
         self.init_ui(anurati_family)
         self.load_settings()
+        # FIX 2: Apply directly (no QTimer wrapper) so settings are applied
+        # synchronously. A second apply runs after all windows are shown (in main).
         self.apply_clicked()
 
     def init_ui(self, anurati_family):
         self.setWindowTitle("Settings")
         layout = QVBoxLayout()
 
+        # ics sellector
         layout.addWidget(QLabel("Calendar .ics URL:"))
         self.ics_url_edit = QLineEdit(self)
         self.ics_url_edit.setPlaceholderText("https://.../calendar.ics")
@@ -1147,6 +1090,7 @@ class SettingsWindow(QWidget):
         self.startup_checkbox_widget = QCheckBox("Clock")
         layout.addWidget(self.startup_checkbox_widget)
         self.startup_checkbox_widget.toggled.connect(lambda v: self._save_flag("show_widget_on_start", v))
+
         self.startup_checkbox_calendar = QCheckBox("Show calendar at startup")
         layout.addWidget(self.startup_checkbox_calendar)
         self.startup_checkbox_calendar.toggled.connect(lambda v: self._save_flag("show_calendar_on_start", v))
@@ -1168,8 +1112,7 @@ class SettingsWindow(QWidget):
         self.setGeometry(1350, 100, 520, 560)
 
     def _save_flag(self, key: str, checked: bool):
-        settings = QSettings("MyCompany", "MyWidgetApp")
-        settings.setValue(key, bool(checked))
+        QSettings("MyCompany", "MyWidgetApp").setValue(key, bool(checked))
 
     def apply_clicked(self):
         # save calendar URL
@@ -1191,15 +1134,10 @@ class SettingsWindow(QWidget):
         offset_x = self.offset_x_spin.value()
         offset_y = self.offset_y_spin.value()
 
-        QTimer.singleShot(0, lambda: self.widget_app.apply_settings(
-            fonts, sizes, position, offset_x, offset_y
-        ))
-
-        chosen_theme_widget = self.theme_selector_widget.currentText()
-        chosen_theme_tasks = self.theme_selector_tasks.currentText()
-        self.widget_app.apply_theme(chosen_theme_widget)
-        self.task_widget.apply_theme(chosen_theme_tasks)
-
+        # FIX 2: No QTimer.singleShot wrapper - call directly.
+        self.widget_app.apply_settings(fonts, sizes, position, offset_x, offset_y)
+        self.widget_app.apply_theme(self.theme_selector_widget.currentText())
+        self.task_widget.apply_theme(self.theme_selector_tasks.currentText())
         self.widget_app.update_time()
         self.save_settings()
 
@@ -1210,63 +1148,49 @@ class SettingsWindow(QWidget):
             pass
 
     def save_settings(self):
-        settings = QSettings("MyCompany", "MyWidgetApp")
-        settings.setValue("fonts/day", self.font_selector_day.currentText())
-        settings.setValue("fonts/date", self.font_selector_date.currentText())
-        settings.setValue("fonts/time", self.font_selector_time.currentText())
-
-        settings.setValue("sizes/day", self.size_selector_day.value())
-        settings.setValue("sizes/date", self.size_selector_date.value())
-        settings.setValue("sizes/time", self.size_selector_time.value())
-
-        settings.setValue("position", self.position_selector.currentText())
-        settings.setValue("offset_x", self.offset_x_spin.value())
-        settings.setValue("offset_y", self.offset_y_spin.value())
-
-        settings.setValue("theme_widget", str(self.theme_selector_widget.currentText()))
-        settings.setValue("theme_tasks", str(self.theme_selector_tasks.currentText()))
-
-        settings.setValue("show_settings_on_start", bool(self.startup_checkbox_settings.isChecked()))
-        settings.setValue("show_tasks_on_start", bool(self.startup_checkbox_tasks.isChecked()))
-        settings.setValue("show_widget_on_start", bool(self.startup_checkbox_widget.isChecked()))
-        settings.setValue("show_calendar_on_start", bool(self.startup_checkbox_calendar.isChecked()))
+        s = QSettings("MyCompany", "MyWidgetApp")
+        s.setValue("fonts/day", self.font_selector_day.currentText())
+        s.setValue("fonts/date", self.font_selector_date.currentText())
+        s.setValue("fonts/time", self.font_selector_time.currentText())
+        s.setValue("sizes/day", self.size_selector_day.value())
+        s.setValue("sizes/date", self.size_selector_date.value())
+        s.setValue("sizes/time", self.size_selector_time.value())
+        s.setValue("position", self.position_selector.currentText())
+        s.setValue("offset_x", self.offset_x_spin.value())
+        s.setValue("offset_y", self.offset_y_spin.value())
+        s.setValue("theme_widget", self.theme_selector_widget.currentText())
+        s.setValue("theme_tasks", self.theme_selector_tasks.currentText())
+        s.setValue("show_settings_on_start", bool(self.startup_checkbox_settings.isChecked()))
+        s.setValue("show_tasks_on_start", bool(self.startup_checkbox_tasks.isChecked()))
+        s.setValue("show_widget_on_start", bool(self.startup_checkbox_widget.isChecked()))
+        s.setValue("show_calendar_on_start", bool(self.startup_checkbox_calendar.isChecked()))
 
     def load_settings(self):
-        settings = QSettings("MyCompany", "MyWidgetApp")
+        s = QSettings("MyCompany", "MyWidgetApp")
+        self.ics_url_edit.setText(s.value("calendar_url", "", type=str))
+        self.font_selector_day.setCurrentText(s.value("fonts/day", self.available_fonts[0]))
+        self.font_selector_date.setCurrentText(s.value("fonts/date", "Verdana"))
+        self.font_selector_time.setCurrentText(s.value("fonts/time", "Verdana"))
+        self.size_selector_day.setValue(int(s.value("sizes/day", 40)))
+        self.size_selector_date.setValue(int(s.value("sizes/date", 21)))
+        self.size_selector_time.setValue(int(s.value("sizes/time", 15)))
+        self.position_selector.setCurrentText(s.value("position", "Top-center"))
+        self.offset_x_spin.setValue(int(s.value("offset_x", 0)))
+        self.offset_y_spin.setValue(int(s.value("offset_y", 50)))
 
-        self.ics_url_edit.setText(settings.value("calendar_url", "", type=str))
+        for combo, key, default in [
+            (self.theme_selector_widget, "theme_widget", "Day"),
+            (self.theme_selector_tasks, "theme_tasks", "Day"),
+        ]:
+            val = s.value(key, default)
+            if val not in ("Day", "Night"):
+                val = default
+            combo.setCurrentText(val)
 
-        self.font_selector_day.setCurrentText(settings.value("fonts/day", self.available_fonts[0]))
-        self.font_selector_date.setCurrentText(settings.value("fonts/date", "Verdana"))
-        self.font_selector_time.setCurrentText(settings.value("fonts/time", "Verdana"))
-
-        self.size_selector_day.setValue(int(settings.value("sizes/day", 40)))
-        self.size_selector_date.setValue(int(settings.value("sizes/date", 21)))
-        self.size_selector_time.setValue(int(settings.value("sizes/time", 15)))
-
-        self.position_selector.setCurrentText(settings.value("position", "Top-center"))
-        self.offset_x_spin.setValue(int(settings.value("offset_x", 0)))
-        self.offset_y_spin.setValue(int(settings.value("offset_y", 50)))
-
-        theme_widget = settings.value("theme_widget", "Day")
-        if theme_widget not in ("Day", "Night"):
-            theme_widget = "Day"
-        self.theme_selector_widget.setCurrentText(theme_widget)
-
-        theme_tasks = settings.value("theme_tasks", "Day")
-        if theme_tasks not in ("Day", "Night"):
-            theme_tasks = "Day"
-        self.theme_selector_tasks.setCurrentText(theme_tasks)
-
-        show_settings = settings.value("show_settings_on_start", True, type=bool)
-        show_tasks = settings.value("show_tasks_on_start", True, type=bool)
-        show_widget = settings.value("show_widget_on_start", True, type=bool)
-        show_calendar = settings.value("show_calendar_on_start", True, type=bool)
-
-        self.startup_checkbox_settings.setChecked(bool(show_settings))
-        self.startup_checkbox_tasks.setChecked(bool(show_tasks))
-        self.startup_checkbox_widget.setChecked(bool(show_widget))
-        self.startup_checkbox_calendar.setChecked(bool(show_calendar))
+        self.startup_checkbox_settings.setChecked(bool(s.value("show_settings_on_start", True, type=bool)))
+        self.startup_checkbox_tasks.setChecked(bool(s.value("show_tasks_on_start", True, type=bool)))
+        self.startup_checkbox_widget.setChecked(bool(s.value("show_widget_on_start", True, type=bool)))
+        self.startup_checkbox_calendar.setChecked(bool(s.value("show_calendar_on_start", True, type=bool)))
 
     def finish_clicked(self):
         self.hide()
@@ -1287,7 +1211,6 @@ def main():
     tray_icon = QSystemTrayIcon()
     tray_icon.setIcon(QIcon(resource_path("icon/Logo.ico")))
     tray_icon.setVisible(True)
-
     widget_app.setWindowIcon(QIcon(resource_path("icon/Logo.ico")))
 
     tray_menu = QMenu()
@@ -1299,7 +1222,6 @@ def main():
     tray_menu.addAction("Hide Calendar", calendar_widget.hide)
     tray_menu.addAction("Settings", settings_window.show)
     tray_menu.addAction("Exit", app.quit)
-
     tray_icon.setContextMenu(tray_menu)
     tray_icon.activated.connect(
         lambda reason: widget_app.show() if reason == QSystemTrayIcon.DoubleClick else None
@@ -1308,22 +1230,29 @@ def main():
     widget_app.update_time()
     calendar_widget.update_event()
 
-    settings = QSettings("MyCompany", "MyWidgetApp")
-    if settings.value("show_widget_on_start", True, type=bool):
+    s = QSettings("MyCompany", "MyWidgetApp")
+    if s.value("show_widget_on_start", True, type=bool):
         widget_app.show()
-    if settings.value("show_tasks_on_start", True, type=bool):
+    if s.value("show_tasks_on_start", True, type=bool):
         task_widget.show()
-    if settings.value("show_calendar_on_start", True, type=bool):
+    if s.value("show_calendar_on_start", True, type=bool):
         calendar_widget.show()
-    if settings.value("show_settings_on_start", True, type=bool):
+    if s.value("show_settings_on_start", True, type=bool):
         settings_window.show()
 
     def post_launch_apply():
-        settings_window.apply_clicked()
+        # FIX 2: Re apply clock position now that the widget is fully rendered.
+        # This is the definitive pass - sizeHint() will be accurate here.
+        widget_app.reapply_last_settings()
         widget_app.update_time()
         calendar_widget.update_event()
+        # FIX 1: Re anchor calendar panel in case availableGeometry wasn't
+        # fully resolved during __init__
+        calendar_widget._reposition()
 
-    QTimer.singleShot(300, post_launch_apply)
+    # 300 wasnt enoughf
+    QTimer.singleShot(500, post_launch_apply)
+
     sys.exit(app.exec_())
 
 

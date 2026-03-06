@@ -1,0 +1,10 @@
+*.pyc
+*.pyz
+*.pkg
+*.exe
+*.zip
+*.toc
+*.txt
+*.html
+___build___/
+___dist___/
