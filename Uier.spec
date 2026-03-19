@@ -1,12 +1,15 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-
 a = Analysis(
     ['Uier.py'],
     pathex=[],
     binaries=[],
     datas=[('fonts', 'fonts'), ('icon', 'icon')],
-    hiddenimports=[],
+    hiddenimports=[
+        'recurring_ical_events',
+        'icalendar',
+        'pytz'
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -35,5 +38,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['icon\\Logo.ico'],
+    icon=['icon/Logo.ico'],
 )

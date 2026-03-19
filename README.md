@@ -28,8 +28,14 @@ Built with **Python + PyQt5 + Ical**, the widget floats on the desktop with a **
 
 ---
 
-## 🚀 How to Run
+## 🚀 Installation & Launch
 
+### For Users
+1. Go to the [Releases](https://github.com/LudusRD/UIer/releases) page.
+2. Download the latest `Uier_Setup_v1.0.0.exe`.
+3. Run the installer and follow the instructions.
+
+### For Developers (Run from source)
 1. 📦 Install dependencies:
     ```bash
     pip install -r requirements.txt
@@ -44,29 +50,23 @@ Built with **Python + PyQt5 + Ical**, the widget floats on the desktop with a **
 
 ## 🛠 How to Build .exe (Windows)
 
+### 1. Build .exe (PyInstaller)
 1. 📥 Install PyInstaller:
     ```bash
     pip install pyinstaller
     ```
-
-2. 🏗 Build using the included spec file:
+2. 🧹 **Important:** If you had build errors before, delete `build/` and `dist/` folders.
+3. 🏗 Build using the spec file:
     ```bash
-    pyinstaller Uier.spec
+    pyinstaller --clean Uier.spec
     ```
+    *Note: The `.spec` file is pre-configured to include `hiddenimports` and resource folders.*
 
-💡 Make sure the `fonts/` and `icon/` folders are in the same directory as `Uier.py`.  
-The `.spec` file already includes all required settings — icon, fonts, and data folders.
-
-👉 The finished `.exe` will appear in the `dist/` folder.
-
-> ⚠️ If you see an error about `pathlib` being incompatible with PyInstaller, run:
-> ```bash
-> python -m pip uninstall pathlib
-> ```
-> Then try building again.
-
-> ⚠️ If you get `PermissionError: Access is denied` on `dist\Uier.exe`, the app is still running.  
-> Close it from the system tray first, then build again.
+### 2. Create Installer (Inno Setup)
+To create a professional single-file setup:
+1. Open the included `.iss` script in **Inno Setup**.
+2. Ensure you have successfully built the `.exe` in the `dist/` folder first.
+3. Click **Compile**. The finished installer will appear in your output directory.
 
 ---
 
